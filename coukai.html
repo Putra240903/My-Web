@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Viewer PDF & Google Slides</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-screen flex bg-gray-100 text-gray-800">
+
+  <!-- Sidebar -->
+  <div class="w-80 bg-red-600 text-white flex flex-col p-4 overflow-y-auto">
+    <h2 class="text-2xl font-bold mb-4">Daftar File</h2>
+
+    <input id="pdfTitle" type="text" placeholder="Judul file (opsional)" class="mb-2 p-2 rounded text-black" />
+    <input id="pdfUrl" type="text" placeholder="Tempel link PDF / Google" class="mb-2 p-2 rounded text-black" />
+    <button onclick="addPdf()" class="bg-green-500 hover:bg-green-600 rounded p-2 font-semibold mb-4">➕ Tambah File</button>
+
+    <div class="space-y-2" id="pdfList"></div>
+
+    <div class="mt-auto pt-4 border-t border-white">
+      <button onclick="exportList()" class="w-full bg-blue-500 hover:bg-blue-600 rounded p-2 font-semibold mb-2">⬇️ Ekspor</button>
+      <input type="file" id="importFile" accept=".json" onchange="importList(event)" class="mb-2 text-white" />
+      <button onclick="toggleFullscreen()" class="w-full bg-yellow-500 hover:bg-yellow-600 rounded p-2 font-semibold">⛶ Fullscreen</button>
+    </div>
+  </div>
+
+  <!-- Viewer -->
+  <div class="flex-1 flex flex-col">
+    <iframe id="viewer" class="flex-1 w-full" src="" allowfullscreen></iframe>
+  </div>
+
+  <script>
+    const viewer = document.getElementById('viewer');
+    const pdfListEl = document.getElementById('pdfList');
+    let pdfList = JSON.parse(localStorage.getItem('pdfList')) || [];
+
+    function convertToEmbedLink(url) {
+      // Google Slides
+      const slidesMatch = url.match(/https:\/\/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+      if (slidesMatch) {
+        const id = slidesMatch[1];
+        return `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&delayms=3000`;
+      }
+
+      // Google Drive (PDF)
+      const driveMatch = url.match(/https:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch) {
+        const id = driveMatch[1];
+        return `https://drive.google.com/uc?export=download&id=${id}`;
+      }
+
+      // Langsung jika .pdf
+      if (url.toLowerCase().endsWith('.pdf')) {
+        return url;
+      }
+
+      return url;
+    }
+
+    function renderList() {
+      pdfListEl.innerHTML = '';
+      pdfList.forEach((item, index) => {
+        const container = document.createElement('div');
+        container.className = 'bg-white text-black rounded flex items-center justify-between px-2 py-1';
+
+        const title = document.createElement('span');
+        title.textContent = item.title || '(Tanpa Judul)';
+        title.className = 'cursor-pointer hover:underline text-sm';
+        title.onclick = () => {
+          viewer.src = convertToEmbedLink(item.url);
+        };
+
+        const del = document.createElement('button');
+        del.textContent = '❌';
+        del.className = 'text-red-600 font-bold';
+        del.onclick = () => {
+          pdfList.splice(index, 1);
+          saveList();
+          renderList();
+        };
+
+        container.appendChild(title);
+        container.appendChild(del);
+        pdfListEl.appendChild(container);
+      });
+    }
+
+    function saveList() {
+      localStorage.setItem('pdfList', JSON.stringify(pdfList));
+    }
+
+    function addPdf() {
+      const title = document.getElementById('pdfTitle').value.trim();
+      const url = document.getElementById('pdfUrl').value.trim();
+      if (!url) {
+        alert("Silakan masukkan URL.");
+        return;
+      }
+      pdfList.push({ title, url });
+      saveList();
+      renderList();
+      document.getElementById('pdfTitle').value = '';
+      document.getElementById('pdfUrl').value = '';
+    }
+
+    function exportList() {
+      const blob = new Blob([JSON.stringify(pdfList, null, 2)], { type: "application/json" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = "daftar-pdf.json";
+      a.click();
+    }
+
+    function importList(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (Array.isArray(data)) {
+            pdfList = data;
+            saveList();
+            renderList();
+            alert("Berhasil diimpor.");
+          } else {
+            alert("Format file tidak valid.");
+          }
+        } catch (err) {
+          alert("Gagal membaca file JSON.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function toggleFullscreen() {
+      const container = document.querySelector('iframe');
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        container.requestFullscreen().catch(err => {
+          alert("Gagal masuk fullscreen: " + err.message);
+        });
+      }
+    }
+
+    renderList();
+  </script>
+
+</body>
+</html>
